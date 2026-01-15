@@ -413,7 +413,7 @@ def cleanup_old_files():
     """Clean up files older than 1 hour"""
     try:
         for filename in os.listdir(TEMP_FOLDER):
-            if filename.startswith('video_') or filename.startswith('audio_'):
+            if filename.startswith('dl_'):
                 filepath = os.path.join(TEMP_FOLDER, filename)
                 if os.path.isfile(filepath):
                     if time.time() - os.path.getmtime(filepath) > 3600:
@@ -427,15 +427,28 @@ def download_video_task(download_id, url, format_type):
         download_status[download_id] = {'status': 'processing', 'progress': 10}
         
         # Generate unique filename
-        timestamp = int(time.time())
         temp_output = os.path.join(TEMP_FOLDER, f'{download_id}_%(title)s.%(ext)s')
         
+        # Enhanced yt-dlp options with better TikTok support
         ydl_opts = {
             'outtmpl': temp_output,
             'quiet': True,
             'no_warnings': True,
-            'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
             'skip_unavailable_fragments': True,
+            'http_headers': {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                'Accept-Language': 'en-us,en;q=0.5',
+                'Sec-Fetch-Mode': 'navigate',
+            },
+            # Better TikTok extraction
+            'extractor_args': {
+                'tiktok': {
+                    'webpage_download': True,
+                    'api_hostname': 'api16-normal-c-useast1a.tiktokv.com',
+                }
+            },
         }
         
         if format_type == 'audio':
@@ -488,6 +501,7 @@ def download_video_task(download_id, url, format_type):
     except Exception as e:
         error_msg = str(e)
         
+        # Better error messages
         if 'Private video' in error_msg:
             error_msg = 'This video is private'
         elif 'Video unavailable' in error_msg:
@@ -496,6 +510,10 @@ def download_video_task(download_id, url, format_type):
             error_msg = 'Access forbidden - video may be geo-restricted'
         elif 'HTTP Error 404' in error_msg:
             error_msg = 'Video not found - check the URL'
+        elif 'Unable to extract' in error_msg:
+            error_msg = 'Could not extract video - platform may have changed. Try updating the app.'
+        elif 'sigi state' in error_msg:
+            error_msg = 'TikTok extraction failed - please update yt-dlp or try a different video'
         
         download_status[download_id] = {
             'status': 'error',
